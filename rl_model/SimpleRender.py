@@ -1,9 +1,9 @@
 from typing import Optional, Union, List
 
-import gym
-from gym import spaces
+import gymnasium as gym
+from gymnasium import spaces
 import numpy as np
-from gym.core import RenderFrame
+from gymnasium.core import RenderFrame
 
 from RandChart import RandChart
 
@@ -30,17 +30,19 @@ class SimpleRandChartState(gym.Env):
         block_list = self.chart.get_normalize_block()
         return np.array(block_list)  # 일단 블록만 해보자
 
-    def reset(self):
+    def reset(self, seed: Optional[int] = None, options: Optional[dict] = None):
+        if seed is not None:
+            self.seed(seed)
         self.chart = RandChart()
         self.money = self.start_money
         self.seed_value = 0.0
         self.act_count = 0
         self.action_list = []
-        return self.get_state_normalize()
+        return self.get_state_normalize(), {}
 
     def render(self) -> Optional[Union[RenderFrame, List[RenderFrame]]]:
         sum_act = 0.0
-        for record_act in self.env.action_list:
+        for record_act in self.action_list:
             sum_act += record_act
         avg_act = float(sum_act / len(self.action_list))
         seed_money = self.seed_value * self.chart.price
@@ -80,6 +82,7 @@ class SimpleRandChartState(gym.Env):
         print(f"{self.act_count}({action}): {total_money}", end="\t\r")
 
         done = False
+        truncated = False
 
         # # 정상적으로 동작중인지 체크를 위한 시각화
         # self.chart.print_blocks()
@@ -88,4 +91,8 @@ class SimpleRandChartState(gym.Env):
         # print(f"{self.act_count} reward {float(reward):.2f}, total reward {((total_money-self.start_money)/self.start_money):.2f}")
         # #
 
-        return state, float(reward), done, {}
+        return state, float(reward), done, truncated, {}
+
+    def seed(self, seed=None):
+        self.np_random, seed = gym.utils.seeding.np_random(seed)
+        return [seed]

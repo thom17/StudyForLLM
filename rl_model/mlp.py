@@ -18,14 +18,14 @@ time_step = 10000
 total_rate = 0
 for ep in range(10):
     env = DummyVecEnv([lambda: SimpleRandChartState()])
-    n_action=np.array([1.0]).reshape(1,1)
+    n_action = np.array([1.0]).reshape(1, 1)
     for i in range(time_step):
         env.step(n_action)
-    totla_money = env.envs[0].get_total_money()
+    total_money = env.envs[0].get_total_money()
     start_money = env.envs[0].start_money
-    rate = (totla_money-start_money)/start_money
-    print(f"{totla_money} ({rate:.2f}%)" )
-    total_rate+=rate
+    rate = (total_money - start_money) / start_money
+    print(f"{total_money} ({rate:.2f}%)")
+    total_rate += rate
 
 print(f"all in total rate {total_rate:.3f}")
 
@@ -36,9 +36,9 @@ for ep in range(10):
     for i in range(time_step):
         action, _ = model.predict(obs)
         obs, rewards, dones, info = env.step(action)
-    totla_money = env.envs[0].get_total_money()
+    total_money = env.envs[0].get_total_money()
     start_money = env.envs[0].start_money
-    rate = (totla_money-start_money)/start_money
-    print(f"{totla_money} ({rate:.2f}%)" )
+    rate = (total_money - start_money) / start_money
+    print(f"{total_money} ({rate:.2f}%)")
     total_rate += rate
 print(f"model total rate {total_rate:.3f}")
