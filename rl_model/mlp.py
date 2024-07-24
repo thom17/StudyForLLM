@@ -11,7 +11,7 @@ env = DummyVecEnv([lambda: SimpleRandChartState()])
 model = PPO('MlpPolicy', env, verbose=0)
 
 # 모델 학습
-model.learn(total_timesteps=100000)
+model.learn(total_timesteps=10000)
 
 time_step = 10000
 

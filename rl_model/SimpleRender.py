@@ -27,8 +27,9 @@ class SimpleRandChartState(gym.Env):
         return len(chart_state_list)
 
     def get_state_normalize(self):
-        block_list = self.chart.get_normalize_block()
-        return np.array(block_list)  # 일단 블록만 해보자
+        # 일단 블록만 해보자
+        state = self.chart.make_state()
+        return np.array(state.normalize_data)
 
     def reset(self, seed: Optional[int] = None, options: Optional[dict] = None):
         if seed is not None:
