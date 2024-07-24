@@ -56,12 +56,19 @@ class RandChart:
         normalize_order = ['blocks']
         return EnvState(data=data_dict, order=normalize_order)
 
-    def buy(self, money) ->float:
-        return money/self.price
+    def buy(self, money) ->int:
+        if money:
+            return int(money/self.price)
+        else:
+            return 0
 
     def set_blocks(self):
+        min = self.min
+        if self.price + self.min <= 1:
+            min = 0
+
         for i in range(2, 13):
-            self.blocks[i] = rand.randint(self.min, self.max)
+            self.blocks[i] = rand.randint(min, self.max)
 
     def print_blocks(self):
         print("price : ", self.price)
@@ -109,6 +116,10 @@ class RandChart:
         record['next_price'] = self.price
 
         self.records.append(record)
+
+        if self.price <= 1:
+            # print("Rand Chart price 0 !!!")
+            self.price = 1
 
     def make_plot(self):
         x = [i for i in range(len(self.records))]

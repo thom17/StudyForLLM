@@ -14,9 +14,9 @@ from env_state import EnvState
 다중 차트 테스트
 """
 
-class RandChartState(gym.Env):
+class RandChartEnv(gym.Env):
     def __init__(self, chart_list: Optional[List[RandChart]] = None, max_chart_num=12):
-        super(RandChartState, self).__init__()
+        super(RandChartEnv, self).__init__()
 
         self.MAX_CHART_NUM = max_chart_num
 
@@ -35,7 +35,7 @@ class RandChartState(gym.Env):
         self.action_list = []
 
         self.observation_space = spaces.Box(low=0, high=1, shape=(self.get_state_size(),), dtype=np.float32)
-        self.action_space = spaces.Box(low=-1.0, high=1.0, shape=(self.get_state_size(),), dtype=np.float32)
+        self.action_space = spaces.Box(low=-1.0, high=1.0, shape=(self.MAX_CHART_NUM,), dtype=np.float32)
 
     def __make_rand_charts(self):
         chart_list = []
@@ -50,7 +50,7 @@ class RandChartState(gym.Env):
             min_val = rand.randint(-4, -1)
             max_val = rand.randint(1, 4)
 
-            price = rand_idx[i] * 100 + 200
+            price = rand_idx[i] * 200 + 500
             chart = RandChart(price=price, min=min_val, max=max_val, rotate=rotate)
             chart_list.append(chart)
         return chart_list
@@ -66,7 +66,8 @@ class RandChartState(gym.Env):
             seed = self.seed_value[i]
             chart_state.update_data('seed', (seed, [seed]))  # To do: 추가적인 정규화 처리
 
-            price_rate = chart.price / self.cash
+            if self.cash:
+                price_rate = chart.price / self.cash
             if 1 < price_rate:
                 price_rate = -1.0
 
@@ -86,7 +87,7 @@ class RandChartState(gym.Env):
 
     def get_state_size(self) -> int:
         state = self.make_state()
-        return len(state.normalize_data) * self.MAX_CHART_NUM
+        return len(state.normalize_data) # * self.MAX_CHART_NUM #패딩을 포함했으니 이것도 제거
 
     def get_state_normalize(self):
         state = self.make_state()
@@ -94,11 +95,18 @@ class RandChartState(gym.Env):
 
     def reset(self, seed=None, options=None):
         super().reset(seed=seed)
-        self.chart = RandChart()
-        self.money = self.start_money
+
+        self.chart_list: [RandChart] = self.__make_rand_charts()
+        self.chart_num = len(self.chart_list)
+        self.records = {}
         self.seed_value = [0.0 for _ in range(self.chart_num)]
+
+        self.cash = self.start_money
         self.act_count = 0
+
+        self.state_list = []
         self.action_list = []
+
         state = self.get_state_normalize()
         return state, {}
 
@@ -112,49 +120,85 @@ class RandChartState(gym.Env):
         print(f"rate : {(seed_money + self.money - self.start_money) / self.start_money }")
 
     def get_total_money(self):
-        return (self.seed_value[0] * self.chart.price) + self.money
+        total_money = self.cash
+        for i in range(self.chart_num):
+            total_money += self.chart_list[i].price * self.seed_value[i]
 
-    def step(self, n_action: float, update=True):
-        action = 0
+        return total_money
 
-        self.act_count += 1
-        self.action_list.append(n_action)
+    def __is_enable_action(self, n_action_lst: [float]) -> bool:
+        buy_rate = 0
+        for i in range(self.MAX_CHART_NUM):
+            n_action = n_action_lst[i]
+            if abs(n_action) and self.chart_num <= i:
+                return False
+            elif 0 < n_action:
+                buy_rate += n_action
+            elif n_action < 0 and self.seed_value[i] == 0.0:
+                continue
 
-        buy_money = n_action * self.money
-        if 0 < n_action:  # 구입
-            can_buy = self.chart.buy(money=buy_money)
-            action = int(can_buy * n_action)
-        else:
-            action = int(self.seed_value[0] * n_action)
+        return buy_rate <= 1.0
 
-        self.seed_value[0] += action
-        self.money -= (action * self.chart.price)
+    def update_charts(self):
+        for chart in self.chart_list:
+            chart.update()
 
+    def step(self, n_action_lst: [float], update=True):
         before_total_money = self.get_total_money()
-
-        if update:
-            self.chart.update()
-
-        state = self.get_state_normalize()
-        total_money = self.get_total_money()
-        reward = (total_money - before_total_money) / before_total_money if before_total_money != 0 else 0
-        print(f"{self.act_count}({action}): {total_money}", end="\t\r")
 
         done = False
         truncated = False
 
-        return state, float(reward), done, truncated, {}
+        self.act_count += 1
+        self.action_list.append(n_action_lst)
+
+        if not self.__is_enable_action(n_action_lst=n_action_lst):
+            if update:
+                self.update_charts()
+
+            n_state = self.get_state_normalize()
+
+            return n_state, float(-1), done, truncated, {}
+
+
+        total_dif_cash = 0
+        for i in range(self.chart_num):
+            n_action = n_action_lst[i]
+            chart:RandChart = self.chart_list[i]
+
+            if 0 <= n_action: #구입 & 대기
+                dif_seed = int(chart.buy(n_action * self.cash))
+                dif_cash = chart.price * dif_seed * -1
+            else:
+                dif_seed = int(self.seed_value[i] * n_action)
+                dif_cash = chart.price * dif_seed #action 이 -
+
+            self.seed_value[i] = self.seed_value[i] + dif_seed
+            total_dif_cash = total_dif_cash + dif_cash
+
+
+        #action은 현제 cash 에서 분배 기준이므로 한번에 변경해야함
+        self.cash = self.cash + total_dif_cash
+
+        if update:
+            self.update_charts()
+
+        normal_state = self.get_state_normalize()
+        total_money = self.get_total_money()
+        reward = (total_money - before_total_money) / before_total_money if before_total_money != 0 else 0
+
+        return normal_state, float(reward), done, truncated, {}
 
 if __name__ == "__main__":
     import matplotlib.pyplot as plt
 
-    chartState = RandChartState()
-    colors = plt.cm.get_cmap('viridis', chartState.chart_num)
+    chartsEnv = RandChartEnv()
+    colors = plt.cm.get_cmap('viridis', chartsEnv.chart_num)
     c_idx = 0
     for i in range(200):
-        for chart in chartState.chart_list:
+        for chart in chartsEnv.chart_list:
             chart.update()
-    for chart in chartState.chart_list:
+    for chart in chartsEnv.chart_list:
         x = list(range(len(chart.records)))
         y = [record['price'] for record in chart.records]
 
@@ -165,13 +209,14 @@ if __name__ == "__main__":
     plt.ylabel("price")
     plt.show()
 
-    print(chartState.chart_num, " num :")
+    print(chartsEnv.chart_num, " num :")
     i = 0
-    n_data = chartState.get_state_normalize()
-    div = chartState.get_state_size() / chartState.MAX_CHART_NUM
 
-    for data in n_data:
-        print(data, end="\t")
-        i += 1
-        if i % div == 0:
-            print()
+    state = chartsEnv.make_state()
+
+    print("state Size = ", chartsEnv.get_state_size())
+    div = chartsEnv.get_state_size() / chartsEnv.MAX_CHART_NUM
+    print("size / max chart num = ", div)
+
+    for key in state.normalize_order:
+        print(f"{key} {state.data_dict[key]}")

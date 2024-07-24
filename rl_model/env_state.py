@@ -70,7 +70,6 @@ class EnvState:
                     for n in normal_datas:
                         data_list.append(n)
 
-            ndarray = np.array(data_list).reshape(1, -1)
         except:
             print(f"{key} try execpt {normal_datas}")
 
