@@ -41,7 +41,20 @@ class RandChart:
         block_list.append(self.price)
         return block_list
 
+    def __get_normalize_block(self):
+        block_list = self.__block_to_list()
+        return [(d+2)/(self.max-self.min) for d in block_list]
 
+    def make_state(self):
+        data_dict = {'price': (self.price, None),
+                     'min': (self.min, None),
+                     'max': (self.max, None),
+                     'blocks': (self.blocks, self.__get_normalize_block()),
+                     'rotate': (self.rotate, None),
+                     'id': (self.id, None)
+                     }
+        normalize_order = ['blocks']
+        return EnvState(data=data_dict, order=normalize_order)
 
     def buy(self, money) ->float:
         return money/self.price
