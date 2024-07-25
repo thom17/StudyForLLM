@@ -10,6 +10,8 @@ from RandChart import RandChart
 import random as rand
 from env_state import EnvState
 
+from collections import defaultdict
+
 """
 다중 차트 테스트
 """
@@ -25,11 +27,12 @@ class RandChartEnv(gym.Env):
 
         self.chart_list: List[RandChart] = chart_list
         self.chart_num = len(chart_list)
-        self.records = {}
+        self.records = defaultdict(list)
         self.seed_value = [0.0 for _ in range(self.chart_num)]
         self.start_money = 100000
         self.cash = self.start_money
         self.act_count = 0
+        self.ep_num = 0
 
         self.state_list = []
         self.action_list = []
@@ -68,8 +71,8 @@ class RandChartEnv(gym.Env):
 
             if self.cash:
                 price_rate = chart.price / self.cash
-            if 1 < price_rate:
-                price_rate = -1.0
+                if 1 < price_rate:
+                    price_rate = -1.0
 
             chart_state.update_data('price', (chart.price, [price_rate]))
 
@@ -98,7 +101,6 @@ class RandChartEnv(gym.Env):
 
         self.chart_list: [RandChart] = self.__make_rand_charts()
         self.chart_num = len(self.chart_list)
-        self.records = {}
         self.seed_value = [0.0 for _ in range(self.chart_num)]
 
         self.cash = self.start_money
@@ -143,9 +145,41 @@ class RandChartEnv(gym.Env):
         for chart in self.chart_list:
             chart.update()
 
-    def step(self, n_action_lst: [float], update=True):
-        before_total_money = self.get_total_money()
+    def recording(self, n_action_list: [float], parese_act: bool) -> EnvState:
+        """
+        현제 State와 Action을 저장 (결과는 x)
+        :param n_action_list:
+        :param parese_act:
+        :return:
+        """
+        state = self.make_state()
+        ar_dif_seed=[ 0 for i in range(len(n_action_list))]
+        ar_dif_cash=[ 0 for i in range(len(n_action_list))]
+        total_dif_cash = 0
+        if parese_act:
+            for i in range(self.chart_num):
+                n_action = n_action_list[i]
+                chart: RandChart = self.chart_list[i]
 
+                if 0 <= n_action:  # 구입 & 대기
+                    dif_seed = int(chart.buy(n_action * self.cash))
+                    dif_cash = chart.price * dif_seed * -1
+                else:
+                    dif_seed = int(n_action * self.seed_value[i])
+                    dif_cash = chart.price * dif_seed
+
+                ar_dif_seed[i] = dif_seed
+                ar_dif_cash[i] = dif_cash
+
+                total_dif_cash = total_dif_cash + dif_cash
+
+        state.update_data('total_dif_cash', (total_dif_cash, None))
+        state.update_data('act', (ar_dif_seed, n_action_list))
+        state.update_data('dif_cash', (ar_dif_cash, n_action_list))
+        self.records[self.ep_num].append(state)
+        return state
+
+    def step(self, n_action_lst: [float], update=True):
         done = False
         truncated = False
 
@@ -157,32 +191,25 @@ class RandChartEnv(gym.Env):
                 self.update_charts()
 
             n_state = self.get_state_normalize()
-
+            self.recording(n_action_lst, parese_act=False)
             return n_state, float(-1), done, truncated, {}
 
+        #action에 대한 결과를 계산하여 state를 생성 및 저장
+        act_state = self.recording(n_action_lst, parese_act=True)
 
-        total_dif_cash = 0
+        #행동 적용 전의 총자산
+        before_total_money = self.get_total_money()
+
+        #결과 적용
+        self.cash = act_state.get_data('total_dif_cash') + self.cash
         for i in range(self.chart_num):
-            n_action = n_action_lst[i]
-            chart:RandChart = self.chart_list[i]
+            self.seed_value[i] = act_state.get_data('act')[i] + self.seed_value[i]
 
-            if 0 <= n_action: #구입 & 대기
-                dif_seed = int(chart.buy(n_action * self.cash))
-                dif_cash = chart.price * dif_seed * -1
-            else:
-                dif_seed = int(self.seed_value[i] * n_action)
-                dif_cash = chart.price * dif_seed #action 이 -
-
-            self.seed_value[i] = self.seed_value[i] + dif_seed
-            total_dif_cash = total_dif_cash + dif_cash
-
-
-        #action은 현제 cash 에서 분배 기준이므로 한번에 변경해야함
-        self.cash = self.cash + total_dif_cash
-
+        #행동 적용 후 차트 변경
         if update:
             self.update_charts()
 
+        #행동 적용 후 총 자산
         normal_state = self.get_state_normalize()
         total_money = self.get_total_money()
         reward = (total_money - before_total_money) / before_total_money if before_total_money != 0 else 0
@@ -190,6 +217,10 @@ class RandChartEnv(gym.Env):
         return normal_state, float(reward), done, truncated, {}
 
 if __name__ == "__main__":
+    ac=[i for i in range(6)]
+
+    print(    np.array(ac)/2)
+
     import matplotlib.pyplot as plt
 
     chartsEnv = RandChartEnv()
@@ -200,7 +231,7 @@ if __name__ == "__main__":
             chart.update()
     for chart in chartsEnv.chart_list:
         x = list(range(len(chart.records)))
-        y = [record['price'] for record in chart.records]
+        y = [record.get_data('price') for record in chart.records]
 
         plt.plot(x, y, c=colors(c_idx))
         c_idx += 1

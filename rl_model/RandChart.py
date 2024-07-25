@@ -99,9 +99,7 @@ class RandChart:
         return result, (d1, d2)
 
     def update(self):
-        record = {}
-        record['block'] = self.blocks
-        record['price'] = self.price
+        state = self.make_state()
 
         r, dice = self.roll()
         self.price = self.price + r
@@ -111,27 +109,45 @@ class RandChart:
         elif self.rotate and len(self.records) % self.rotate == 0:
             self.set_blocks()
 
-        record['roll'] = r
-        record['next_block'] = self.blocks
-        record['next_price'] = self.price
+        state.update_data('roll', (r, None))
+        state.update_data('dice', (dice, None))
 
-        self.records.append(record)
+        self.records.append(state)
 
         if self.price <= 1:
             # print("Rand Chart price 0 !!!")
             self.price = 1
 
+    def predict_next(self, block_list: [int]) -> float:
+        totals = 0
+        for i in range(1, 7):
+            for j in range(1, 7):
+                totals += block_list[i + j]
+        return totals/36
+
     def make_plot(self):
         x = [i for i in range(len(self.records))]
-        y = [record['price'] for record in self.records]
+        y = []
+        predict_y = []
+        for state in self.records:
+            price = state.get_data('price')
+            y.append(price)
+
+            predict_r = self.predict_next(state.get_data('blocks'))
+            predict_y.append(predict_r + price)
 
         plt.plot(x, y)
         plt.xlabel("time")
         plt.ylabel("price")
+        plt.plot(x, predict_y, c='r')
         plt.show()
 
 
 if __name__ == "__main__":
+    for i in range(1, 6):
+        for j in range(1, 6):
+            print(i, j)
+
     chart = RandChart()
 
     for i in range(500):

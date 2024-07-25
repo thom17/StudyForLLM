@@ -30,6 +30,15 @@ class EnvState:
 
         self.set_normalize_order(order)
 
+    def get_data(self, key, normalize = False):
+        if key in self.data_dict:
+            data_pair = self.data_dict[key]
+            if normalize:
+                return data_pair[1]
+            else:
+                return data_pair[0]
+
+
 
     def set_normalize_order(self, order):
         assert isinstance(order, list), f"order info must list[str] , {type(order)}"
