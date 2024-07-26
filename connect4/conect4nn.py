@@ -11,9 +11,10 @@ class ConnectFourNN(nn.Module):
     def __init__(self):
         super(ConnectFourNN, self).__init__()
         self.conv1 = nn.Conv2d(1, 64, kernel_size=4, stride=1, padding=2)
-        self.conv2 = nn.Conv2d(64, 128, kernel_size=4, stride=1, padding=2)
+        self.conv2 = nn.Conv2d(64, 128, kernel_size=4, stride=1, padding=1)
+
         # 이 값은 Conv 레이어를 통과한 후의 출력 크기 계산에 따라 설정되어야 합니다.
-        self.fc1 = nn.Linear(128 * 8 * 7, 512)
+        self.fc1 = nn.Linear(128 * 6 * 7, 512)
         self.fc2 = nn.Linear(512, 7)
         self.fc3 = nn.Linear(512, 1)
 

@@ -2,6 +2,8 @@ import torch
 import numpy as np
 
 from connect4env import ConnectFourEnv
+
+
 class MCTSNode:
     def __init__(self, state, parent=None):
         self.state = state
@@ -9,6 +11,7 @@ class MCTSNode:
         self.children = {}
         self.visits = 0
         self.value = 0
+
 
 def mcts_search(env, model, state, n_simulations=100):
     root = MCTSNode(state)
@@ -22,18 +25,29 @@ def mcts_search(env, model, state, n_simulations=100):
 
         # Selection
         while node.children and not done:
-            node = max(node.children.values(), key=lambda n: n.value / n.visits + np.sqrt(2 * np.log(node.parent.visits) / n.visits))
+            def uct_value(node):
+                if node.visits == 0:
+                    return float('inf')
+                return node.value / node.visits + np.sqrt(2 * np.log(node.parent.visits) / node.visits)
+
+            node = max(node.children.values(), key=uct_value)
             _, _, done, _ = sim_env.step(np.argmax(node.state))
 
         # Expansion
+        new_state = node.state  # Initialize new_state with the current node's state
         if not done:
             actions = sim_env.available_actions()
             for action in actions:
-                new_state = np.copy(node.state)
-                row = np.argmax(new_state[:, action] == 0)
-                new_state[row, action] = sim_env.current_player
+                temp_state = np.copy(node.state)
+                row = np.argmax(temp_state[:, action] == 0)
+                temp_state[row, action] = sim_env.current_player
                 if action not in node.children:
-                    node.children[action] = MCTSNode(new_state, parent=node)
+                    node.children[action] = MCTSNode(temp_state, parent=node)
+            # Use the first action to initialize new_state for simulation
+            if actions:
+                row = np.argmax(node.state[:, actions[0]] == 0)
+                new_state = np.copy(node.state)
+                new_state[row, actions[0]] = sim_env.current_player
 
         # Simulation
         new_state_tensor = torch.tensor(new_state, dtype=torch.float32).unsqueeze(0).unsqueeze(0)
