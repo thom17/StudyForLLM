@@ -31,27 +31,24 @@ class SimpleRandChartState(gym.Env):
 
 
     def make_cur_state(self)->EnvState:
-        state = self.chart.make_state() #차트를 기반으로 생성
+        chart_state_list = self.chart.make_state()
         seed_money = self.seed_value * self.chart.price
         total_money = seed_money + self.money
         seed_rate = seed_money/total_money
 
         total_dif = (total_money - self.start_money)/self.start_money
 
-        state.update_data('total_money', (total_money, [total_dif]) )
+        chart_state_list.update_data('total_money', (total_money, [total_dif]) )
 
-        state.update_data('seed_value', (self.seed_value, [seed_rate]))
+        chart_state_list.update_data('seed_value', (self.seed_value, [seed_rate]))
 
         normalize_order = ['total_money', 'seed_value','blocks' ]
-        state.set_normalize_order(normalize_order)
-        return state
+        chart_state_list.set_normalize_order(normalize_order)
+        return chart_state_list
 
     def get_state_normalize(self):
-        # # 일단 블록만 해보자
-        # state = self.chart.make_state()
-        # return np.array(state.normalize_data)
-
-        state = self.make_cur_state()
+        # 일단 블록만 해보자
+        state = self.chart.make_state()
         return np.array(state.normalize_data)
 
     def reset(self, seed: Optional[int] = None, options: Optional[dict] = None):
@@ -100,7 +97,7 @@ class SimpleRandChartState(gym.Env):
         if update:
             self.chart.update()
 
-
+        state = self.get_state_normalize()
         total_money = self.get_total_money()
         reward = (total_money - before_total_money) / before_total_money
         # print(f"{self.act_count}({action}): {total_money}", end="\t\r")
@@ -111,9 +108,9 @@ class SimpleRandChartState(gym.Env):
         self.cur_step_state.update_data('reward' , (reward, [reward]))
         self.cur_step_state.update_data('next_state', (next_state, None))
         self.records.append(self.cur_step_state)
+
         self.cur_step_state = next_state
 
-        state = next_state.normalize_data
         done = False
         truncated = False
 
@@ -123,8 +120,6 @@ class SimpleRandChartState(gym.Env):
         # print("total ",total_money)
         # print(f"{self.act_count} reward {float(reward):.2f}, total reward {((total_money-self.start_money)/self.start_money):.2f}")
         # #
-
-
 
         return state, float(reward), done, truncated, {}
 

@@ -4,7 +4,7 @@ import numpy as np
 
 
 class EnvState:
-    def __init__(self, data: [str, (list, list) ], order: [str]):
+    def __init__(self, data: [str, (list, list) ], order: [str] = []):
         """
         환경 클래스에서 상태화할 변수를 입력받아 EnvState를 생성
         :data {str 변수명 , tuple(데이터 값, 정규화 값) }

@@ -60,7 +60,7 @@ class RandChartEnv(gym.Env):
 
     def make_state(self) -> EnvState:
         state_dict = {}
-        this_env_normalize_order = []  # ['pos_encode']
+        this_env_normalize_order = ['size']
         chart_state_size = 0
         for i in range(self.chart_num):
             chart = self.chart_list[i]
@@ -69,6 +69,7 @@ class RandChartEnv(gym.Env):
             seed = self.seed_value[i]
             chart_state.update_data('seed', (seed, [seed]))  # To do: 추가적인 정규화 처리
 
+            price_rate = 0
             if self.cash:
                 price_rate = chart.price / self.cash
                 if 1 < price_rate:
@@ -86,6 +87,8 @@ class RandChartEnv(gym.Env):
             n_padding = [0.0 for _ in range(chart_state_size)]
             state_dict[f'chart_{i}'] = (None, n_padding)
             this_env_normalize_order.append(f'chart_{i}')
+
+        state_dict['size'] = (self.chart_num, [self.chart_num/self.MAX_CHART_NUM])
         return EnvState(state_dict, this_env_normalize_order)
 
     def get_state_size(self) -> int:
@@ -98,6 +101,7 @@ class RandChartEnv(gym.Env):
 
     def reset(self, seed=None, options=None):
         super().reset(seed=seed)
+        self.ep_num+=1
 
         self.chart_list: [RandChart] = self.__make_rand_charts()
         self.chart_num = len(self.chart_list)
@@ -128,12 +132,12 @@ class RandChartEnv(gym.Env):
 
         return total_money
 
-    def __is_enable_action(self, n_action_lst: [float]) -> bool:
+    def __is_enable_action(self, n_action_lst: List[float]) -> bool:
         buy_rate = 0
         for i in range(self.MAX_CHART_NUM):
             n_action = n_action_lst[i]
             if abs(n_action) and self.chart_num <= i:
-                return False
+                 continue
             elif 0 < n_action:
                 buy_rate += n_action
             elif n_action < 0 and self.seed_value[i] == 0.0:
@@ -145,7 +149,7 @@ class RandChartEnv(gym.Env):
         for chart in self.chart_list:
             chart.update()
 
-    def recording(self, n_action_list: [float], parese_act: bool) -> EnvState:
+    def recording(self, n_action_list: [float], parse_act: bool) -> EnvState:
         """
         현제 State와 Action을 저장 (결과는 x)
         :param n_action_list:
@@ -153,10 +157,10 @@ class RandChartEnv(gym.Env):
         :return:
         """
         state = self.make_state()
-        ar_dif_seed=[ 0 for i in range(len(n_action_list))]
-        ar_dif_cash=[ 0 for i in range(len(n_action_list))]
+        ar_dif_seed = [0 for _ in range(len(n_action_list))]
+        ar_dif_cash = [0 for _ in range(len(n_action_list))]
         total_dif_cash = 0
-        if parese_act:
+        if parse_act:
             for i in range(self.chart_num):
                 n_action = n_action_list[i]
                 chart: RandChart = self.chart_list[i]
@@ -179,7 +183,7 @@ class RandChartEnv(gym.Env):
         self.records[self.ep_num].append(state)
         return state
 
-    def step(self, n_action_lst: [float], update=True):
+    def step(self, n_action_lst: List[float], update=True):
         done = False
         truncated = False
 
@@ -191,35 +195,32 @@ class RandChartEnv(gym.Env):
                 self.update_charts()
 
             n_state = self.get_state_normalize()
-            self.recording(n_action_lst, parese_act=False)
+            self.recording(n_action_lst, parse_act=False)
             return n_state, float(-1), done, truncated, {}
 
-        #action에 대한 결과를 계산하여 state를 생성 및 저장
-        act_state = self.recording(n_action_lst, parese_act=True)
-
-        #행동 적용 전의 총자산
+        act_state = self.recording(n_action_lst, parse_act=True)
         before_total_money = self.get_total_money()
-
-        #결과 적용
         self.cash = act_state.get_data('total_dif_cash') + self.cash
         for i in range(self.chart_num):
             self.seed_value[i] = act_state.get_data('act')[i] + self.seed_value[i]
 
-        #행동 적용 후 차트 변경
         if update:
             self.update_charts()
 
-        #행동 적용 후 총 자산
         normal_state = self.get_state_normalize()
         total_money = self.get_total_money()
         reward = (total_money - before_total_money) / before_total_money if before_total_money != 0 else 0
 
         return normal_state, float(reward), done, truncated, {}
 
-if __name__ == "__main__":
-    ac=[i for i in range(6)]
+    def sample_random_action(self) -> List[float]:
+        print("use RAnd Sample")
+        return self.action_space.sample().tolist()
 
-    print(    np.array(ac)/2)
+if __name__ == "__main__":
+    a1 = np.array([i for i in range(6)])
+    a2 = np.array([-i for i in range(6)])
+    print(a1+a2)
 
     import matplotlib.pyplot as plt
 

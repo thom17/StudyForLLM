@@ -2,7 +2,7 @@ import numpy as np
 from stable_baselines3 import PPO
 from stable_baselines3.common.vec_env import DummyVecEnv
 
-from SimpleRender import SimpleRandChartState
+from SimpleRender_only_block import SimpleRandChartState
 
 # 사용자 정의 환경
 
@@ -21,7 +21,7 @@ for i in range(1, 12):
     # 모델 학습
     model.learn(total_timesteps=total_time_steps)
 
-    model.save(f'ppo_result/money_block/{int(total_time_steps/1000)}k.h5')
+    model.save(f'ppo_result/only_block/{int(total_time_steps/1000)}k.h5')
 
 
 time_step = 10000
